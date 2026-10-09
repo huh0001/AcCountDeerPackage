@@ -1,184 +1,236 @@
-#' Project deer population dynamics
-#'
-#' Projects deer population dynamics over 15 model years.
-#'
-#' @return A data frame containing the population projection.
-#' @export
-
-
 AcCountDeer <- function(
-    PreharvestPop,
-    DoeRat,
-    adProp,
-    y1Prop,
-    yearProp,
-    fawnProp,
-    adFawnRate,
-    yearFawnRate,
-    antleredHarv,
-    antlerlessHarv,
-    yearHarvProp_M,
-    yearHarvProp_F,
-    fawnHarvProp,
-    birthMonth,
-    seasonOpen,
-    seasonDuration,
-    admale_nhm,
-    adfemale_nhm,
-    yearmale_nhm,
-    yearfemale_nhm,
-    fawnmale_nhm,
-    fawnfemale_nhm,
-    sixmonthfawn_nhm,
+    preharvest_pop = preharvest_pop,
+    doe_ratio = doe_ratio,
+    adult_prop = adult_prop,
+    y1_prop = y1_prop,
+    yearling_prop = yearling_prop,
+    fawn_prop = fawn_prop,
+    adult_fawn_rate = adult_fawn_rate,
+    yearling_fawn_rate = yearling_fawn_rate,
+    antlered_harvest = antlered_harvest,
+    antlerless_harvest = antlerless_harvest,
+    m_yearling_harvest_prop = m_yearling_harvest_prop,
+    f_yearling_harvest_prop = f_yearling_harvest_prop,
+    fawn_harvest_prop = fawn_harvest_prop,
+    birth_month = birth_month,
+    season_open = season_open,
+    season_duration = season_duration,
+    adult_male_nhm = adult_male_nhm,
+    adult_female_nhm = adult_female_nhm,
+    yearling_male_nhm = yearling_male_nhm,
+    yearling_female_nhm = yearling_female_nhm,
+    fawn_male_nhm = fawn_male_nhm,
+    fawn_female_nhm = fawn_female_nhm,
+    six_month_fawn_nhm = six_month_fawn_nhm,
 
-    harvest_chng_admale,
-    harvest_chng_adfemale,
-    harvest_chng_y1male,
-    harvest_chng_y1female,
-    harvest_chng_ymale,
-    harvest_chng_yfemale,
-    harvest_chng_fawnmale,
-    harvest_chng_fawnfemale,
+    hc_adult_male = 0,
+    hc_adult_female = 0,
+    hc_y1_male = 0,
+    hc_y1_female = 0,
+    hc_yearling_male = 0,
+    hc_yearling_female = 0,
+    hc_fawn_male = 0,
+    hc_fawn_female = 0,
 
-    adMort_admale,
-    adMort_adfemale,
-    adMort_y1male,
-    adMort_y1female,
-    adMort_ymale,
-    adMort_yfemale,
-    adMort_fawnmale,
-    adMort_fawnfemale,
+    adm_adult_male = 0,
+    adm_adult_female = 0,
+    adm_y1_male = 0,
+    adm_y1_female = 0,
+    adm_yearling_male = 0,
+    adm_yearling_female = 0,
+    adm_fawn_male = 0,
+    adm_fawn_female = 0,
 
-    changeDuration,
-    adMortChangeDuration,
+    hc_duration = 0,
+    adm_duration = 0,
 
-    iterative = FALSE
+    hc_specify = 0,
+    adm_specify = 0,
+
+    project_years = 15
 ) {
+
+  ## Value Validation
+  hc_validation <- c(
+    hc_adult_male,
+    hc_adult_female,
+    hc_y1_male,
+    hc_y1_female,
+    hc_yearling_male,
+    hc_yearling_female,
+    hc_fawn_male,
+    hc_fawn_female
+  )
+
+  if (any(is.na(hc_validation)) ||
+      any(hc_validation < -1 | hc_validation > 1)) {
+    stop("All hc values must be between -1 and 1 and cannot be NA.")
+  }
+
+  adm_validation <- c(
+    adm_adult_male,
+    adm_adult_female,
+    adm_y1_male,
+    adm_y1_female,
+    adm_yearling_male,
+    adm_yearling_female,
+    adm_fawn_male,
+    adm_fawn_female
+  )
+
+  if (any(adm_validation < 0 | adm_validation > 1)) {
+    stop("All adm values must be between 0 and 1.")
+  }
+
+  # Check month/season inputs
+  month_validation <- c(
+    birth_month,
+    season_open,
+    season_duration
+  )
+
+  if (any(is.na(month_validation)) ||
+      any(month_validation < 0 | month_validation > 12)) {
+    stop("birth_month, season_open, and season_duration must be between 0 and 12.")
+  }
+
+  # Check population proportion inputs
+  prop_validation <- c(
+    adult_prop,
+    y1_prop,
+    yearling_prop,
+    fawn_prop
+  )
+
+  if (any(is.na(prop_validation)) ||
+      any(prop_validation < 0 | prop_validation > 1)) {
+    stop("Proportions must be between 0 and 1.")
+  }
 
 
   ################ Set-up ##################
-  Doe_Decimal <- round((((DoeRat*100)/(DoeRat+100))/100), digits =2)
-  Buck_Decimal <- round((1 - Doe_Decimal), digits = 2)
+  doe_decimal <- round((((doe_ratio*100)/(doe_ratio+100))/100), digits =2)
+  buck_decimal <- round((1 - doe_decimal), digits = 2)
 
 
   ##### Year 0 population #####
-  N_preharvestAd_0 <- PreharvestPop * adProp
-  N_preharvesty1_0 <- PreharvestPop * y1Prop
-  N_preharvestyear_0 <- PreharvestPop * yearProp
-  N_preharvestfawn_0 <- PreharvestPop * fawnProp
+  N_preharvest_adult_0 <- preharvest_pop * adult_prop
+  N_preharvest_y1_0 <- preharvest_pop * y1_prop
+  N_preharvest_yearling_0 <- preharvest_pop * yearling_prop
+  N_preharvest_fawn_0 <- preharvest_pop * fawn_prop
 
-  year0population <- as.data.frame(rbind(N_preharvestAd_0, N_preharvesty1_0, N_preharvestyear_0, N_preharvestfawn_0))
+  year_0_population <- as.data.frame(rbind(N_preharvest_adult_0, N_preharvest_y1_0, N_preharvest_yearling_0, N_preharvest_fawn_0))
 
-  year0population <- data.frame(
-    AgeClass = c("Adult", "Young", "Yearling", "Fawn"),
-    TotalPopulation = c(
-      N_preharvestAd_0,
-      N_preharvesty1_0,
-      N_preharvestyear_0,
-      N_preharvestfawn_0
+  year_0_population <- data.frame(
+    age_class = c("Adult", "Young", "Yearling", "Fawn"),
+    total_population = c(
+      N_preharvest_adult_0,
+      N_preharvest_y1_0,
+      N_preharvest_yearling_0,
+      N_preharvest_fawn_0
     )
   )
 
-  year0population$male <- round(year0population$TotalPopulation * Buck_Decimal)
-  year0population$female <- round(year0population$TotalPopulation * Doe_Decimal)
+  year_0_population$male <- round(year_0_population$total_population * buck_decimal)
+  year_0_population$female <- round(year_0_population$total_population * doe_decimal)
 
 
 
   ##### Non-harvest mortality df #####
 
   nhm_df <- data.frame(
-    AgeClass = c("admale_nhm", "adfemale_nhm", "yearmale_nhm", "yearfemale_nhm", "fawnmale_nhm","fawnfemale_nhm", "sixmonthfawn_nhm"),
-    finiteRate = c(
-      admale_nhm,
-      adfemale_nhm,
-      yearmale_nhm,
-      yearfemale_nhm,
-      fawnmale_nhm,
-      fawnfemale_nhm,
-      sixmonthfawn_nhm
+    age_class = c("adult_male_nhm", "adult_female_nhm", "yearling_male_nhm", "yearling_female_nhm", "fawn_male_nhm","fawn_female_nhm", "six_month_fawn_nhm"),
+    finite_rate = c(
+      adult_male_nhm,
+      adult_female_nhm,
+      yearling_male_nhm,
+      yearling_female_nhm,
+      fawn_male_nhm,
+      fawn_female_nhm,
+      six_month_fawn_nhm
     )
   )
 
-  nhm_df$instantaneousRate <- log(1- nhm_df$finiteRate)
-  nhm_df$monthlyRate <- (1-exp(nhm_df$instantaneousRate *(1/12)))
+  nhm_df$instantaneous_rate <- log(1- nhm_df$finite_rate)
+  nhm_df$monthly_rate <- (1-exp(nhm_df$instantaneous_rate *(1/12)))
 
 
   ##### Harvest Distribution #####
 
   harvest_fun <- function(
-    antlerlessHarv,
-    antleredHarv,
-    fawnHarvProp,
-    yearHarvProp_F,
-    yearHarvProp_M,
-    y1Prop
+    antlerless_harvest,
+    antlered_harvest,
+    fawn_harvest_prop,
+    f_yearling_harvest_prop,
+    m_yearling_harvest_prop,
+    y1_prop
   ) {
 
     # Step 1: Fawn harvest
-    fawnfemale_harv <- round(
-      (antlerlessHarv * fawnHarvProp) / 2
+    fawn_female_harvest <- round(
+      (antlerless_harvest * fawn_harvest_prop) / 2
     )
 
-    fawnmale_harv <- round(
-      (antlerlessHarv * fawnHarvProp) / 2
+    fawn_male_harvest <- round(
+      (antlerless_harvest * fawn_harvest_prop) / 2
     )
 
     # Step 2: Yearling harvest
-    yearfemale_harv <- round(
-      antlerlessHarv * yearHarvProp_F
+    yearling_female_harvest <- round(
+      antlerless_harvest * f_yearling_harvest_prop
     )
 
-    yearmale_harv <- round(
-      antleredHarv * yearHarvProp_M
+    yearling_male_harvest <- round(
+      antlered_harvest * m_yearling_harvest_prop
     )
 
     # Step 3: Year 1 harvest
-    y1female_harv <- round(
-      (antlerlessHarv -
-         (fawnfemale_harv +
-            fawnmale_harv +
-            yearfemale_harv)) * y1Prop
+    y1_female_harvest <- round(
+      (antlerless_harvest -
+         (fawn_female_harvest +
+            fawn_male_harvest +
+            yearling_female_harvest)) * y1_prop
     )
 
-    y1male_harv <- round(
-      (antleredHarv - yearmale_harv) * y1Prop
+    y1_male_harvest <- round(
+      (antlered_harvest - yearling_male_harvest) * y1_prop
     )
 
     # Step 4: Adult harvest
-    adfemale_harv <- round(
-      antlerlessHarv -
-        (fawnfemale_harv +
-           fawnmale_harv +
-           yearfemale_harv +
-           y1female_harv)
+    adult_female_harvest <- round(
+      antlerless_harvest -
+        (fawn_female_harvest +
+           fawn_male_harvest +
+           yearling_female_harvest +
+           y1_female_harvest)
     )
 
-    admale_harv <- round(
-      antleredHarv -
-        (yearmale_harv + y1male_harv)
+    adult_male_harvest <- round(
+      antlered_harvest -
+        (yearling_male_harvest + y1_male_harvest)
     )
 
     # Step 5: Combine results
     harv_df <- data.frame(
-      harvestClass = c(
-        "admale_harv",
-        "adfemale_harv",
-        "y1male_harv",
-        "y1female_harv",
-        "yearmale_harv",
-        "yearfemale_harv",
-        "fawnmale_harv",
-        "fawnfemale_harv"
+      harvest_class = c(
+        "adult_male_harvest",
+        "adult_female_harvest",
+        "y1_male_harvest",
+        "y1_female_harvest",
+        "yearling_male_harvest",
+        "yearling_female_harvest",
+        "fawn_male_harvest",
+        "fawn_female_harvest"
       ),
-      N_Harvest = c(
-        admale_harv,
-        adfemale_harv,
-        y1male_harv,
-        y1female_harv,
-        yearmale_harv,
-        yearfemale_harv,
-        fawnmale_harv,
-        fawnfemale_harv
+      N_harvest = c(
+        adult_male_harvest,
+        adult_female_harvest,
+        y1_male_harvest,
+        y1_female_harvest,
+        yearling_male_harvest,
+        yearling_female_harvest,
+        fawn_male_harvest,
+        fawn_female_harvest
       )
     )
 
@@ -186,801 +238,806 @@ AcCountDeer <- function(
   }
 
   harv_df <- harvest_fun(
-    antlerlessHarv = antlerlessHarv,
-    antleredHarv = antleredHarv,
-    fawnHarvProp = fawnHarvProp,
-    yearHarvProp_F = yearHarvProp_F,
-    yearHarvProp_M = yearHarvProp_M,
-    y1Prop = y1Prop
+    antlerless_harvest = antlerless_harvest,
+    antlered_harvest = antlered_harvest,
+    fawn_harvest_prop = fawn_harvest_prop,
+    f_yearling_harvest_prop = f_yearling_harvest_prop,
+    m_yearling_harvest_prop = m_yearling_harvest_prop,
+    y1_prop = y1_prop
   )
 
 
-  year0_harvprep <- reshape2::melt(
-    data = dplyr::select(year0population, -TotalPopulation),
-    id.vars = "AgeClass",
-    variable.name = "Sex",
-    value.name = "Population"
+  year_0_harvest_prep <- reshape(
+    year_0_population[c("age_class", "male", "female")],
+    varying = c("male", "female"),
+    v.names = "population",
+    timevar = "sex",
+    times = c("male", "female"),
+    idvar = "age_class",
+    direction = "long"
   )
 
-  year0_harvprep <- year0_harvprep |>
-    dplyr::mutate(
-      AgeClass = factor(
-        AgeClass,
+  rownames(year_0_harvest_prep) <- NULL
+
+  year_0_harvest_prep <- year_0_harvest_prep %>%
+    mutate(
+      age_class = factor(
+        age_class,
         levels = c("Adult", "Young", "Yearling", "Fawn")
       )
-    ) |>
-    dplyr::arrange(AgeClass, Sex) |>
-    dplyr::mutate(
-      harvestClass = dplyr::case_when(
-        AgeClass == "Adult"    & Sex == "male"   ~ "admale_harv",
-        AgeClass == "Adult"    & Sex == "female" ~ "adfemale_harv",
-        AgeClass == "Young"    & Sex == "male"   ~ "y1male_harv",
-        AgeClass == "Young"    & Sex == "female" ~ "y1female_harv",
-        AgeClass == "Yearling" & Sex == "male"   ~ "yearmale_harv",
-        AgeClass == "Yearling" & Sex == "female" ~ "yearfemale_harv",
-        AgeClass == "Fawn"     & Sex == "male"   ~ "fawnmale_harv",
-        AgeClass == "Fawn"     & Sex == "female" ~ "fawnfemale_harv",
+    ) %>%
+    arrange(age_class, sex) %>%
+    mutate(
+      harvest_class = case_when(
+        age_class == "Adult"    & sex == "male"   ~ "adult_male_harvest",
+        age_class == "Adult"    & sex == "female" ~ "adult_female_harvest",
+        age_class == "Young"    & sex == "male"   ~ "y1_male_harvest",
+        age_class == "Young"    & sex == "female" ~ "y1_female_harvest",
+        age_class == "Yearling" & sex == "male"   ~ "yearling_male_harvest",
+        age_class == "Yearling" & sex == "female" ~ "yearling_female_harvest",
+        age_class == "Fawn"     & sex == "male"   ~ "fawn_male_harvest",
+        age_class == "Fawn"     & sex == "female" ~ "fawn_female_harvest",
         TRUE ~ NA_character_
       )
     )
 
-  harv_df <- harv_df |>
-    dplyr::left_join(
-      year0_harvprep |>
-        dplyr::select(harvestClass, Population),
-      by = "harvestClass"
+  harv_df <- harv_df %>%
+    left_join(
+      year_0_harvest_prep %>%
+        select(harvest_class, population),
+      by = "harvest_class"
     )
 
 
-  harv_df$Precent_harv <- harv_df$N_Harvest / harv_df$Population
+  harv_df$precent_harvest <- harv_df$N_harvest / harv_df$population
 
-  harv_df$Precent_harv <- round(harv_df$Precent_harv, digits = 2)
+  harv_df$precent_harvest <- round(harv_df$precent_harvest, digits = 2)
 
 
 
   ################ Year 1 ##################
 
   # Step 1
-  N_admale_posth <- round((year0population[year0population$AgeClass == "Adult", "male"] - ((year0population[year0population$AgeClass == "Adult", "male"] - (year0population[year0population$AgeClass == "Adult", "male"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "admale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "admale_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Adult", "male"]*(1-((1- nhm_df[nhm_df$AgeClass == "admale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_adult_male_posth <- round((year_0_population[year_0_population$age_class == "Adult", "male"] - ((year_0_population[year_0_population$age_class == "Adult", "male"] - (year_0_population[year_0_population$age_class == "Adult", "male"]*(1 - ((1- nhm_df[nhm_df$age_class == "adult_male_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "adult_male_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Adult", "male"]*(1-((1- nhm_df[nhm_df$age_class == "adult_male_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 2
-  N_adfemale_posth <- round((year0population[year0population$AgeClass == "Adult", "female"] - ((year0population[year0population$AgeClass == "Adult", "female"] - (year0population[year0population$AgeClass == "Adult", "female"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "adfemale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "adfemale_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Adult", "female"]*(1-((1- nhm_df[nhm_df$AgeClass == "adfemale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_adult_female_posth <- round((year_0_population[year_0_population$age_class == "Adult", "female"] - ((year_0_population[year_0_population$age_class == "Adult", "female"] - (year_0_population[year_0_population$age_class == "Adult", "female"]*(1 - ((1- nhm_df[nhm_df$age_class == "adult_female_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "adult_female_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Adult", "female"]*(1-((1- nhm_df[nhm_df$age_class == "adult_female_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 3
-  N_y1male_posth <- round((year0population[year0population$AgeClass == "Young", "male"] - ((year0population[year0population$AgeClass == "Young", "male"] - (year0population[year0population$AgeClass == "Young", "male"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "admale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "y1male_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Young", "male"]*(1-((1- nhm_df[nhm_df$AgeClass == "admale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_y1_male_posth <- round((year_0_population[year_0_population$age_class == "Young", "male"] - ((year_0_population[year_0_population$age_class == "Young", "male"] - (year_0_population[year_0_population$age_class == "Young", "male"]*(1 - ((1- nhm_df[nhm_df$age_class == "adult_male_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "y1_male_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Young", "male"]*(1-((1- nhm_df[nhm_df$age_class == "adult_male_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 4
-  N_y1female_posth <- round((year0population[year0population$AgeClass == "Young", "female"] - ((year0population[year0population$AgeClass == "Young", "female"] - (year0population[year0population$AgeClass == "Young", "female"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "adfemale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "y1female_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Young", "female"]*(1-((1- nhm_df[nhm_df$AgeClass == "adfemale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_y1_female_posth <- round((year_0_population[year_0_population$age_class == "Young", "female"] - ((year_0_population[year_0_population$age_class == "Young", "female"] - (year_0_population[year_0_population$age_class == "Young", "female"]*(1 - ((1- nhm_df[nhm_df$age_class == "adult_female_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "y1_female_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Young", "female"]*(1-((1- nhm_df[nhm_df$age_class == "adult_female_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 5
-  N_ymale_posth <- round((year0population[year0population$AgeClass == "Yearling", "male"] - ((year0population[year0population$AgeClass == "Yearling", "male"] - (year0population[year0population$AgeClass == "Yearling", "male"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "yearmale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "yearmale_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Yearling", "male"]*(1-((1- nhm_df[nhm_df$AgeClass == "yearmale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_yearling_male_posth <- round((year_0_population[year_0_population$age_class == "Yearling", "male"] - ((year_0_population[year_0_population$age_class == "Yearling", "male"] - (year_0_population[year_0_population$age_class == "Yearling", "male"]*(1 - ((1- nhm_df[nhm_df$age_class == "yearling_male_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "yearling_male_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Yearling", "male"]*(1-((1- nhm_df[nhm_df$age_class == "yearling_male_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 6
-  N_yfemale_posth <- round((year0population[year0population$AgeClass == "Yearling", "female"] - ((year0population[year0population$AgeClass == "Yearling", "female"] - (year0population[year0population$AgeClass == "Yearling", "female"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "yearfemale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "yearfemale_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Yearling", "female"]*(1-((1- nhm_df[nhm_df$AgeClass == "yearfemale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_yearling_female_posth <- round((year_0_population[year_0_population$age_class == "Yearling", "female"] - ((year_0_population[year_0_population$age_class == "Yearling", "female"] - (year_0_population[year_0_population$age_class == "Yearling", "female"]*(1 - ((1- nhm_df[nhm_df$age_class == "yearling_female_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "yearling_female_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Yearling", "female"]*(1-((1- nhm_df[nhm_df$age_class == "yearling_female_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 7
-  N_fawnmale_posth <- round((year0population[year0population$AgeClass == "Fawn", "male"] - ((year0population[year0population$AgeClass == "Fawn", "male"] - (year0population[year0population$AgeClass == "Fawn", "male"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "fawnmale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "fawnmale_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Fawn", "male"]*(1-((1- nhm_df[nhm_df$AgeClass == "fawnmale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_fawn_male_posth <- round((year_0_population[year_0_population$age_class == "Fawn", "male"] - ((year_0_population[year_0_population$age_class == "Fawn", "male"] - (year_0_population[year_0_population$age_class == "Fawn", "male"]*(1 - ((1- nhm_df[nhm_df$age_class == "fawn_male_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "fawn_male_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Fawn", "male"]*(1-((1- nhm_df[nhm_df$age_class == "fawn_male_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 8
-  N_fawnfemale_posth <-  round((year0population[year0population$AgeClass == "Fawn", "female"] - ((year0population[year0population$AgeClass == "Fawn", "female"] - (year0population[year0population$AgeClass == "Fawn", "female"]*(1 - ((1- nhm_df[nhm_df$AgeClass == "fawnfemale_nhm", "monthlyRate"])^(seasonDuration))))))*harv_df[harv_df$harvestClass == "fawnfemale_harv", "Precent_harv"]) - (year0population[year0population$AgeClass == "Fawn", "female"]*(1-((1- nhm_df[nhm_df$AgeClass == "fawnfemale_nhm", "monthlyRate"])^(seasonDuration)))))
+  N_fawn_female_posth <-  round((year_0_population[year_0_population$age_class == "Fawn", "female"] - ((year_0_population[year_0_population$age_class == "Fawn", "female"] - (year_0_population[year_0_population$age_class == "Fawn", "female"]*(1 - ((1- nhm_df[nhm_df$age_class == "fawn_female_nhm", "monthly_rate"])^(season_duration))))))*harv_df[harv_df$harvest_class == "fawn_female_harvest", "precent_harvest"]) - (year_0_population[year_0_population$age_class == "Fawn", "female"]*(1-((1- nhm_df[nhm_df$age_class == "fawn_female_nhm", "monthly_rate"])^(season_duration)))))
 
   # Step 9
-  N_postharvest <- N_admale_posth + N_adfemale_posth + N_y1male_posth + N_y1female_posth + N_ymale_posth + N_yfemale_posth + N_fawnmale_posth + N_fawnfemale_posth
+  N_postharvest <- N_adult_male_posth + N_adult_female_posth + N_y1_male_posth + N_y1_female_posth + N_yearling_male_posth + N_yearling_female_posth + N_fawn_male_posth + N_fawn_female_posth
 
 
 
   ### MidYear ###
 
   # Step 1
-  N_admale_mid <- round((N_admale_posth + N_y1male_posth) - ((N_admale_posth + N_y1male_posth)* (1 - ((1- nhm_df[nhm_df$AgeClass == "admale_nhm", "monthlyRate"])^(12 - (seasonOpen +(seasonDuration - 1)) + birthMonth)))))
+  N_adult_male_mid <- round((N_adult_male_posth + N_y1_male_posth) - ((N_adult_male_posth + N_y1_male_posth)* (1 - ((1- nhm_df[nhm_df$age_class == "adult_male_nhm", "monthly_rate"])^(12 - (season_open +(season_duration - 1)) + birth_month)))))
 
   # Step 2
-  N_adfemale_mid <- round((N_adfemale_posth + N_y1female_posth) - ((N_adfemale_posth + N_y1female_posth)* (1 - ((1- nhm_df[nhm_df$AgeClass == "adfemale_nhm", "monthlyRate"])^(12 - (seasonOpen +(seasonDuration - 1)) + birthMonth)))))
+  N_adult_female_mid <- round((N_adult_female_posth + N_y1_female_posth) - ((N_adult_female_posth + N_y1_female_posth)* (1 - ((1- nhm_df[nhm_df$age_class == "adult_female_nhm", "monthly_rate"])^(12 - (season_open +(season_duration - 1)) + birth_month)))))
 
   # Step 3
-  N_y1male_mid <- round(N_ymale_posth - (N_ymale_posth * (1 - ((1- nhm_df[nhm_df$AgeClass == "yearmale_nhm", "monthlyRate"])^(12 - (seasonOpen +(seasonDuration - 1)) + birthMonth)))))
+  N_y1_male_mid <- round(N_yearling_male_posth - (N_yearling_male_posth * (1 - ((1- nhm_df[nhm_df$age_class == "yearling_male_nhm", "monthly_rate"])^(12 - (season_open +(season_duration - 1)) + birth_month)))))
 
   # Step 4
-  N_y1female_mid <- round(N_yfemale_posth - (N_yfemale_posth * (1 - ((1- nhm_df[nhm_df$AgeClass == "yearfemale_nhm", "monthlyRate"])^(12 - (seasonOpen +(seasonDuration - 1)) + birthMonth)))))
+  N_y1_female_mid <- round(N_yearling_female_posth - (N_yearling_female_posth * (1 - ((1- nhm_df[nhm_df$age_class == "yearling_female_nhm", "monthly_rate"])^(12 - (season_open +(season_duration - 1)) + birth_month)))))
 
   # Step 5
-  N_ymale_mid <- round(N_fawnmale_posth - (N_fawnmale_posth * (1 - ((1- nhm_df[nhm_df$AgeClass == "fawnmale_nhm", "monthlyRate"])^(12 - (seasonOpen +(seasonDuration - 1)) + birthMonth)))))
+  N_yearling_male_mid <- round(N_fawn_male_posth - (N_fawn_male_posth * (1 - ((1- nhm_df[nhm_df$age_class == "fawn_male_nhm", "monthly_rate"])^(12 - (season_open +(season_duration - 1)) + birth_month)))))
 
   # Step 6
-  N_yfemale_mid <- round(N_fawnfemale_posth - (N_fawnfemale_posth * (1 - ((1- nhm_df[nhm_df$AgeClass == "fawnfemale_nhm", "monthlyRate"])^(12 - (seasonOpen +(seasonDuration - 1)) + birthMonth)))))
+  N_yearling_female_mid <- round(N_fawn_female_posth - (N_fawn_female_posth * (1 - ((1- nhm_df[nhm_df$age_class == "fawn_female_nhm", "monthly_rate"])^(12 - (season_open +(season_duration - 1)) + birth_month)))))
 
   # Step 7
-  birth_malefawn <- round(((N_adfemale_mid*adFawnRate) + (N_y1female_mid*adFawnRate) + (N_yfemale_mid*yearFawnRate))/2)
+  birth_male_fawn <- round(((N_adult_female_mid*adult_fawn_rate) + (N_y1_female_mid*adult_fawn_rate) + (N_yearling_female_mid*yearling_fawn_rate))/2)
 
   # Step 8
-  birth_femalefawn <- round(((N_adfemale_mid*adFawnRate) + (N_y1female_mid*adFawnRate) + (N_yfemale_mid*yearFawnRate))/2)
+  birth_female_fawn <- round(((N_adult_female_mid*adult_fawn_rate) + (N_y1_female_mid*adult_fawn_rate) + (N_yearling_female_mid*yearling_fawn_rate))/2)
 
   # Step 9
-  N_midYear <- N_admale_mid +
-    N_adfemale_mid +
-    N_y1male_mid +
-    N_y1female_mid +
-    N_ymale_mid +
-    N_yfemale_mid +
-    birth_malefawn +
-    birth_femalefawn
+  N_midyear <- N_adult_male_mid +
+    N_adult_female_mid +
+    N_y1_male_mid +
+    N_y1_female_mid +
+    N_yearling_male_mid +
+    N_yearling_female_mid +
+    birth_male_fawn +
+    birth_female_fawn
 
 
   ### Preharvest ###
 
   # Step 1
-  N_admale_preh <- round(N_admale_mid - (N_admale_mid* (1-((1-nhm_df[nhm_df$AgeClass == "admale_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_adult_male_preh <- round(N_adult_male_mid - (N_adult_male_mid* (1-((1-nhm_df[nhm_df$age_class == "adult_male_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 2
-  N_adfemale_preh <- round(N_adfemale_mid - (N_adfemale_mid* (1-((1-nhm_df[nhm_df$AgeClass == "adfemale_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_adult_female_preh <- round(N_adult_female_mid - (N_adult_female_mid* (1-((1-nhm_df[nhm_df$age_class == "adult_female_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 3
-  N_y1male_preh <- round(N_y1male_mid - (N_y1male_mid* (1-((1-nhm_df[nhm_df$AgeClass == "admale_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_y1_male_preh <- round(N_y1_male_mid - (N_y1_male_mid* (1-((1-nhm_df[nhm_df$age_class == "adult_male_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 4
-  N_y1female_preh <- round(N_y1female_mid - (N_y1female_mid* (1-((1-nhm_df[nhm_df$AgeClass == "adfemale_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_y1_female_preh <- round(N_y1_female_mid - (N_y1_female_mid* (1-((1-nhm_df[nhm_df$age_class == "adult_female_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 5
-  N_ymale_preh <- round(N_ymale_mid - (N_ymale_mid* (1-((1-nhm_df[nhm_df$AgeClass == "yearmale_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_yearling_male_preh <- round(N_yearling_male_mid - (N_yearling_male_mid* (1-((1-nhm_df[nhm_df$age_class == "yearling_male_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 6
-  N_yfemale_preh <- round(N_yfemale_mid - (N_yfemale_mid* (1-((1-nhm_df[nhm_df$AgeClass == "yearfemale_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_yearling_female_preh <- round(N_yearling_female_mid - (N_yearling_female_mid* (1-((1-nhm_df[nhm_df$age_class == "yearling_female_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 7
-  N_fawnmale_preh <- round(birth_malefawn - (birth_malefawn* (1-((1-nhm_df[nhm_df$AgeClass == "sixmonthfawn_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_fawn_male_preh <- round(birth_male_fawn - (birth_male_fawn* (1-((1-nhm_df[nhm_df$age_class == "six_month_fawn_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 8
-  N_fawnfemale_preh <- round(birth_femalefawn - (birth_femalefawn* (1-((1-nhm_df[nhm_df$AgeClass == "sixmonthfawn_nhm", "monthlyRate"])^((seasonOpen-1)- birthMonth)))))
+  N_fawn_female_preh <- round(birth_female_fawn - (birth_female_fawn* (1-((1-nhm_df[nhm_df$age_class == "six_month_fawn_nhm", "monthly_rate"])^((season_open-1)- birth_month)))))
 
   # Step 9
-  N_preharvest <-  N_admale_preh +
-    N_adfemale_preh +
-    N_y1male_preh +
-    N_y1female_preh +
-    N_ymale_preh +
-    N_yfemale_preh +
-    N_fawnmale_preh +
-    N_fawnfemale_preh
+  N_preharvest <-  N_adult_male_preh +
+    N_adult_female_preh +
+    N_y1_male_preh +
+    N_y1_female_preh +
+    N_yearling_male_preh +
+    N_yearling_female_preh +
+    N_fawn_male_preh +
+    N_fawn_female_preh
 
-  ### Harvest ###
+  ### Modeled Harvest ###
 
   # Step 1
-  N_admale_harvest <- round(N_admale_preh*harv_df[harv_df$harvestClass == "admale_harv", "Precent_harv"])
+  N_adult_male_mharvest <- round(N_adult_male_preh*harv_df[harv_df$harvest_class == "adult_male_harvest", "precent_harvest"])
 
   # Step 2
-  N_adfemale_harvest <- round(N_adfemale_preh*harv_df[harv_df$harvestClass == "adfemale_harv", "Precent_harv"])
+  N_adult_female_mharvest <- round(N_adult_female_preh*harv_df[harv_df$harvest_class == "adult_female_harvest", "precent_harvest"])
 
   # Step 3
-  N_y1male_harvest <- round(N_y1male_preh*harv_df[harv_df$harvestClass == "y1male_harv", "Precent_harv"])
+  N_y1_male_mharvest <- round(N_y1_male_preh*harv_df[harv_df$harvest_class == "y1_male_harvest", "precent_harvest"])
 
   # Step 4
-  N_y1female_harvest <- round(N_y1female_preh*harv_df[harv_df$harvestClass == "y1female_harv", "Precent_harv"])
+  N_y1_female_mharvest <- round(N_y1_female_preh*harv_df[harv_df$harvest_class == "y1_female_harvest", "precent_harvest"])
 
   # Step 5
-  N_ymale_harvest <- round(N_ymale_preh*harv_df[harv_df$harvestClass == "yearmale_harv", "Precent_harv"])
+  N_yearling_male_mharvest <- round(N_yearling_male_preh*harv_df[harv_df$harvest_class == "yearling_male_harvest", "precent_harvest"])
 
   # Step 6
-  N_yfemale_harvest <- round(N_yfemale_preh*harv_df[harv_df$harvestClass == "yearfemale_harv", "Precent_harv"])
+  N_yearling_female_mharvest <- round(N_yearling_female_preh*harv_df[harv_df$harvest_class == "yearling_female_harvest", "precent_harvest"])
 
   # Step 7
-  N_fawnmale_harvest <- round(N_fawnmale_preh*harv_df[harv_df$harvestClass == "fawnmale_harv", "Precent_harv"])
+  N_fawn_male_mharvest <- round(N_fawn_male_preh*harv_df[harv_df$harvest_class == "fawn_male_harvest", "precent_harvest"])
 
   # Step 8
-  N_fawnfemale_harvest <- round(N_fawnfemale_preh*harv_df[harv_df$harvestClass == "fawnfemale_harv", "Precent_harv"])
+  N_fawn_female_mharvest <- round(N_fawn_female_preh*harv_df[harv_df$harvest_class == "fawn_female_harvest", "precent_harvest"])
 
   # Step 9
-  N_harvest <-  N_admale_harvest +
-    N_adfemale_harvest +
-    N_y1male_harvest +
-    N_y1female_harvest +
-    N_ymale_harvest +
-    N_yfemale_harvest +
-    N_fawnmale_harvest +
-    N_fawnfemale_harvest
+  N_mharvest <-  N_adult_male_mharvest +
+    N_adult_female_mharvest +
+    N_y1_male_mharvest +
+    N_y1_female_mharvest +
+    N_yearling_male_mharvest +
+    N_yearling_female_mharvest +
+    N_fawn_male_mharvest +
+    N_fawn_female_mharvest
 
   # Combine all results into one data frame
   previous_year <- data.frame(
-    N_admale_posth,
-    N_adfemale_posth,
-    N_y1male_posth,
-    N_y1female_posth,
-    N_ymale_posth,
-    N_yfemale_posth,
-    N_fawnmale_posth,
-    N_fawnfemale_posth,
+    N_adult_male_posth,
+    N_adult_female_posth,
+    N_y1_male_posth,
+    N_y1_female_posth,
+    N_yearling_male_posth,
+    N_yearling_female_posth,
+    N_fawn_male_posth,
+    N_fawn_female_posth,
     N_postharvest,
-    N_admale_mid,
-    N_adfemale_mid,
-    N_y1male_mid,
-    N_y1female_mid,
-    N_ymale_mid,
-    N_yfemale_mid,
-    birth_malefawn,
-    birth_femalefawn,
-    N_midYear,
-    N_admale_preh,
-    N_adfemale_preh,
-    N_y1male_preh,
-    N_y1female_preh,
-    N_ymale_preh,
-    N_yfemale_preh,
-    N_fawnmale_preh,
-    N_fawnfemale_preh,
+    N_adult_male_mid,
+    N_adult_female_mid,
+    N_y1_male_mid,
+    N_y1_female_mid,
+    N_yearling_male_mid,
+    N_yearling_female_mid,
+    birth_male_fawn,
+    birth_female_fawn,
+    N_midyear,
+    N_adult_male_preh,
+    N_adult_female_preh,
+    N_y1_male_preh,
+    N_y1_female_preh,
+    N_yearling_male_preh,
+    N_yearling_female_preh,
+    N_fawn_male_preh,
+    N_fawn_female_preh,
     N_preharvest,
-    N_admale_harvest,
-    N_adfemale_harvest,
-    N_y1male_harvest,
-    N_y1female_harvest,
-    N_ymale_harvest,
-    N_yfemale_harvest,
-    N_fawnmale_harvest,
-    N_fawnfemale_harvest,
-    N_harvest
+    N_adult_male_mharvest,
+    N_adult_female_mharvest,
+    N_y1_male_mharvest,
+    N_y1_female_mharvest,
+    N_yearling_male_mharvest,
+    N_yearling_female_mharvest,
+    N_fawn_male_mharvest,
+    N_fawn_female_mharvest,
+    N_mharvest
   )
 
   ########### Beyond year 1 ###############
   year_fun <- function(
     previous_year,
-    seasonDuration,
-    seasonOpen,
-    birthMonth,
-    adFawnRate,
-    yearFawnRate,
-    harvest_chng_admale,
-    harvest_chng_adfemale,
-    harvest_chng_y1male,
-    harvest_chng_y1female,
-    harvest_chng_ymale,
-    harvest_chng_yfemale,
-    harvest_chng_fawnmale,
-    harvest_chng_fawnfemale,
-    adMort_admale,
-    adMort_adfemale,
-    adMort_y1male,
-    adMort_y1female,
-    adMort_ymale,
-    adMort_yfemale,
-    adMort_fawnmale,
-    adMort_fawnfemale
+    season_duration,
+    season_open,
+    birth_month,
+    adult_fawn_rate,
+    yearling_fawn_rate,
+    hc_adult_male,
+    hc_adult_female,
+    hc_y1_male,
+    hc_y1_female,
+    hc_yearling_male,
+    hc_yearling_female,
+    hc_fawn_male,
+    hc_fawn_female,
+    adm_adult_male,
+    adm_adult_female,
+    adm_y1_male,
+    adm_y1_female,
+    adm_yearling_male,
+    adm_yearling_female,
+    adm_fawn_male,
+    adm_fawn_female
   ) {
 
     ### Postharvest ###
 
-    N_admale_posth <- round(
-      previous_year$N_admale_preh -
+    N_adult_male_posth <- round(
+      previous_year$N_adult_male_preh -
         (
-          previous_year$N_admale_preh -
+          previous_year$N_adult_male_preh -
             (
-              previous_year$N_admale_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_adult_male_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "admale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_admale)
+          harv_df[harv_df$harvest_class == "adult_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_adult_male)
         ) -
         (
-          previous_year$N_admale_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_adult_male_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
-    N_adfemale_posth <- round(
-      previous_year$N_adfemale_preh -
+    N_adult_female_posth <- round(
+      previous_year$N_adult_female_preh -
         (
-          previous_year$N_adfemale_preh -
+          previous_year$N_adult_female_preh -
             (
-              previous_year$N_adfemale_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_adult_female_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "adfemale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_adfemale)
+          harv_df[harv_df$harvest_class == "adult_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_adult_female)
         ) -
         (
-          previous_year$N_adfemale_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_adult_female_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
-    N_y1male_posth <- round(
-      previous_year$N_y1male_preh -
+    N_y1_male_posth <- round(
+      previous_year$N_y1_male_preh -
         (
-          previous_year$N_y1male_preh -
+          previous_year$N_y1_male_preh -
             (
-              previous_year$N_y1male_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_y1_male_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "y1male_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_y1male)
+          harv_df[harv_df$harvest_class == "y1_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_y1_male)
         ) -
         (
-          previous_year$N_y1male_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_y1_male_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
-    N_y1female_posth <- round(
-      previous_year$N_y1female_preh -
+    N_y1_female_posth <- round(
+      previous_year$N_y1_female_preh -
         (
-          previous_year$N_y1female_preh -
+          previous_year$N_y1_female_preh -
             (
-              previous_year$N_y1female_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_y1_female_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "y1female_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_y1female)
+          harv_df[harv_df$harvest_class == "y1_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_y1_female)
         ) -
         (
-          previous_year$N_y1female_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_y1_female_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
-    N_ymale_posth <- round(
-      previous_year$N_ymale_preh -
+    N_yearling_male_posth <- round(
+      previous_year$N_yearling_male_preh -
         (
-          previous_year$N_ymale_preh -
+          previous_year$N_yearling_male_preh -
             (
-              previous_year$N_ymale_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearmale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_yearling_male_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_male_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "yearmale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_ymale)
+          harv_df[harv_df$harvest_class == "yearling_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_yearling_male)
         ) -
         (
-          previous_year$N_ymale_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearmale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_yearling_male_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_male_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
-    N_yfemale_posth <- round(
-      previous_year$N_yfemale_preh -
+    N_yearling_female_posth <- round(
+      previous_year$N_yearling_female_preh -
         (
-          previous_year$N_yfemale_preh -
+          previous_year$N_yearling_female_preh -
             (
-              previous_year$N_yfemale_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearfemale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_yearling_female_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_female_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "yearfemale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_yfemale)
+          harv_df[harv_df$harvest_class == "yearling_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_yearling_female)
         ) -
         (
-          previous_year$N_yfemale_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearfemale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_yearling_female_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_female_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
-    N_fawnmale_posth <- round(
-      previous_year$N_fawnmale_preh -
+    N_fawn_male_posth <- round(
+      previous_year$N_fawn_male_preh -
         (
-          previous_year$N_fawnmale_preh -
+          previous_year$N_fawn_male_preh -
             (
-              previous_year$N_fawnmale_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "fawnmale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_fawn_male_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "fawn_male_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "fawnmale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_fawnmale)
+          harv_df[harv_df$harvest_class == "fawn_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_fawn_male)
         ) -
         (
-          previous_year$N_fawnmale_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "fawnmale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_fawn_male_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "fawn_male_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
-    N_fawnfemale_posth <- round(
-      previous_year$N_fawnfemale_preh -
+    N_fawn_female_posth <- round(
+      previous_year$N_fawn_female_preh -
         (
-          previous_year$N_fawnfemale_preh -
+          previous_year$N_fawn_female_preh -
             (
-              previous_year$N_fawnfemale_preh *
-                (1 - ((1 - nhm_df[nhm_df$AgeClass == "fawnfemale_nhm",
-                                  "monthlyRate"])^seasonDuration))
+              previous_year$N_fawn_female_preh *
+                (1 - ((1 - nhm_df[nhm_df$age_class == "fawn_female_nhm",
+                                  "monthly_rate"])^season_duration))
             )
         ) *
         (
-          harv_df[harv_df$harvestClass == "fawnfemale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_fawnfemale)
+          harv_df[harv_df$harvest_class == "fawn_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_fawn_female)
         ) -
         (
-          previous_year$N_fawnfemale_preh *
-            (1 - ((1 - nhm_df[nhm_df$AgeClass == "fawnfemale_nhm",
-                              "monthlyRate"])^seasonDuration))
+          previous_year$N_fawn_female_preh *
+            (1 - ((1 - nhm_df[nhm_df$age_class == "fawn_female_nhm",
+                              "monthly_rate"])^season_duration))
         )
     )
 
     N_postharvest <-
-      N_admale_posth +
-      N_adfemale_posth +
-      N_y1male_posth +
-      N_y1female_posth +
-      N_ymale_posth +
-      N_yfemale_posth +
-      N_fawnmale_posth +
-      N_fawnfemale_posth
+      N_adult_male_posth +
+      N_adult_female_posth +
+      N_y1_male_posth +
+      N_y1_female_posth +
+      N_yearling_male_posth +
+      N_yearling_female_posth +
+      N_fawn_male_posth +
+      N_fawn_female_posth
 
 
     ### MidYear ###
 
-    N_admale_mid <- round(
-      (N_admale_posth + N_y1male_posth) -
-        ((N_admale_posth + N_y1male_posth) *
-           (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                             "monthlyRate"])^(
-                               12 - (seasonOpen + (seasonDuration - 1)) +
-                                 birthMonth))))
+    N_adult_male_mid <- round(
+      (N_adult_male_posth + N_y1_male_posth) -
+        ((N_adult_male_posth + N_y1_male_posth) *
+           (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                             "monthly_rate"])^(
+                               12 - (season_open + (season_duration - 1)) +
+                                 birth_month))))
     )
 
-    N_adfemale_mid <- round(
-      (N_adfemale_posth + N_y1female_posth) -
-        ((N_adfemale_posth + N_y1female_posth) *
-           (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                             "monthlyRate"])^(
-                               12 - (seasonOpen + (seasonDuration - 1)) +
-                                 birthMonth))))
+    N_adult_female_mid <- round(
+      (N_adult_female_posth + N_y1_female_posth) -
+        ((N_adult_female_posth + N_y1_female_posth) *
+           (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                             "monthly_rate"])^(
+                               12 - (season_open + (season_duration - 1)) +
+                                 birth_month))))
     )
 
-    N_y1male_mid <- round(
-      N_ymale_posth -
-        (N_ymale_posth *
-           (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearmale_nhm",
-                             "monthlyRate"])^(
-                               12 - (seasonOpen + (seasonDuration - 1)) +
-                                 birthMonth))))
+    N_y1_male_mid <- round(
+      N_yearling_male_posth -
+        (N_yearling_male_posth *
+           (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_male_nhm",
+                             "monthly_rate"])^(
+                               12 - (season_open + (season_duration - 1)) +
+                                 birth_month))))
     )
 
-    N_y1female_mid <- round(
-      N_yfemale_posth -
-        (N_yfemale_posth *
-           (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearfemale_nhm",
-                             "monthlyRate"])^(
-                               12 - (seasonOpen + (seasonDuration - 1)) +
-                                 birthMonth))))
+    N_y1_female_mid <- round(
+      N_yearling_female_posth -
+        (N_yearling_female_posth *
+           (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_female_nhm",
+                             "monthly_rate"])^(
+                               12 - (season_open + (season_duration - 1)) +
+                                 birth_month))))
     )
 
-    N_ymale_mid <- round(
-      N_fawnmale_posth -
-        (N_fawnmale_posth *
-           (1 - ((1 - nhm_df[nhm_df$AgeClass == "fawnmale_nhm",
-                             "monthlyRate"])^(
-                               12 - (seasonOpen + (seasonDuration - 1)) +
-                                 birthMonth))))
+    N_yearling_male_mid <- round(
+      N_fawn_male_posth -
+        (N_fawn_male_posth *
+           (1 - ((1 - nhm_df[nhm_df$age_class == "fawn_male_nhm",
+                             "monthly_rate"])^(
+                               12 - (season_open + (season_duration - 1)) +
+                                 birth_month))))
     )
 
-    N_yfemale_mid <- round(
-      N_fawnfemale_posth -
-        (N_fawnfemale_posth *
-           (1 - ((1 - nhm_df[nhm_df$AgeClass == "fawnfemale_nhm",
-                             "monthlyRate"])^(
-                               12 - (seasonOpen + (seasonDuration - 1)) +
-                                 birthMonth))))
+    N_yearling_female_mid <- round(
+      N_fawn_female_posth -
+        (N_fawn_female_posth *
+           (1 - ((1 - nhm_df[nhm_df$age_class == "fawn_female_nhm",
+                             "monthly_rate"])^(
+                               12 - (season_open + (season_duration - 1)) +
+                                 birth_month))))
     )
 
-    birth_malefawn <- round(
+    birth_male_fawn <- round(
       (
-        (N_adfemale_mid * adFawnRate) +
-          (N_y1female_mid * adFawnRate) +
-          (N_yfemale_mid * yearFawnRate)
+        (N_adult_female_mid * adult_fawn_rate) +
+          (N_y1_female_mid * adult_fawn_rate) +
+          (N_yearling_female_mid * yearling_fawn_rate)
       ) / 2
     )
 
-    birth_femalefawn <- round(
+    birth_female_fawn <- round(
       (
-        (N_adfemale_mid * adFawnRate) +
-          (N_y1female_mid * adFawnRate) +
-          (N_yfemale_mid * yearFawnRate)
+        (N_adult_female_mid * adult_fawn_rate) +
+          (N_y1_female_mid * adult_fawn_rate) +
+          (N_yearling_female_mid * yearling_fawn_rate)
       ) / 2
     )
 
-    N_midYear <-
-      N_admale_mid +
-      N_adfemale_mid +
-      N_y1male_mid +
-      N_y1female_mid +
-      N_ymale_mid +
-      N_yfemale_mid +
-      birth_malefawn +
-      birth_femalefawn
+    N_midyear <-
+      N_adult_male_mid +
+      N_adult_female_mid +
+      N_y1_male_mid +
+      N_y1_female_mid +
+      N_yearling_male_mid +
+      N_yearling_female_mid +
+      birth_male_fawn +
+      birth_female_fawn
 
 
     ### Preharvest ###
 
-    N_admale_preh <- round(
-      (N_admale_mid -
-         N_admale_mid *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_adult_male_preh <- round(
+      (N_adult_male_mid -
+         N_adult_male_mid *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            N_admale_mid -
-              N_admale_mid *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_admale
+            N_adult_male_mid -
+              N_adult_male_mid *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_adult_male
         )
     )
 
-    N_adfemale_preh <- round(
-      (N_adfemale_mid -
-         N_adfemale_mid *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_adult_female_preh <- round(
+      (N_adult_female_mid -
+         N_adult_female_mid *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            N_adfemale_mid -
-              N_adfemale_mid *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_adfemale
+            N_adult_female_mid -
+              N_adult_female_mid *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_adult_female
         )
     )
 
-    N_y1male_preh <- round(
-      (N_y1male_mid -
-         N_y1male_mid *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_y1_male_preh <- round(
+      (N_y1_male_mid -
+         N_y1_male_mid *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            N_y1male_mid -
-              N_y1male_mid *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "admale_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_y1male
+            N_y1_male_mid -
+              N_y1_male_mid *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_y1_male
         )
     )
 
-    N_y1female_preh <- round(
-      (N_y1female_mid -
-         N_y1female_mid *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_y1_female_preh <- round(
+      (N_y1_female_mid -
+         N_y1_female_mid *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            N_y1female_mid -
-              N_y1female_mid *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "adfemale_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_y1female
+            N_y1_female_mid -
+              N_y1_female_mid *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_y1_female
         )
     )
 
-    N_ymale_preh <- round(
-      (N_ymale_mid -
-         N_ymale_mid *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearmale_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_yearling_male_preh <- round(
+      (N_yearling_male_mid -
+         N_yearling_male_mid *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_male_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            N_ymale_mid -
-              N_ymale_mid *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearmale_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_ymale
+            N_yearling_male_mid -
+              N_yearling_male_mid *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_male_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_yearling_male
         )
     )
 
-    N_yfemale_preh <- round(
-      (N_yfemale_mid -
-         N_yfemale_mid *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearfemale_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_yearling_female_preh <- round(
+      (N_yearling_female_mid -
+         N_yearling_female_mid *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_female_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            N_yfemale_mid -
-              N_yfemale_mid *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "yearfemale_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_yfemale
+            N_yearling_female_mid -
+              N_yearling_female_mid *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_female_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_yearling_female
         )
     )
 
-    N_fawnmale_preh <- round(
-      (birth_malefawn -
-         birth_malefawn *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "sixmonthfawn_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_fawn_male_preh <- round(
+      (birth_male_fawn -
+         birth_male_fawn *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            birth_malefawn -
-              birth_malefawn *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "sixmonthfawn_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_fawnmale
+            birth_male_fawn -
+              birth_male_fawn *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_fawn_male
         )
     )
 
-    N_fawnfemale_preh <- round(
-      (birth_femalefawn -
-         birth_femalefawn *
-         (1 - ((1 - nhm_df[nhm_df$AgeClass == "sixmonthfawn_nhm",
-                           "monthlyRate"])^((seasonOpen - 1) - birthMonth)))) -
+    N_fawn_female_preh <- round(
+      (birth_female_fawn -
+         birth_female_fawn *
+         (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
         (
           (
-            birth_femalefawn -
-              birth_femalefawn *
-              (1 - ((1 - nhm_df[nhm_df$AgeClass == "sixmonthfawn_nhm",
-                                "monthlyRate"])^((seasonOpen - 1) -
-                                                   birthMonth)))
-          ) * adMort_fawnfemale
+            birth_female_fawn -
+              birth_female_fawn *
+              (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
+                                "monthly_rate"])^((season_open - 1) -
+                                                    birth_month)))
+          ) * adm_fawn_female
         )
     )
 
     N_preharvest <-
-      N_admale_preh +
-      N_adfemale_preh +
-      N_y1male_preh +
-      N_y1female_preh +
-      N_ymale_preh +
-      N_yfemale_preh +
-      N_fawnmale_preh +
-      N_fawnfemale_preh
+      N_adult_male_preh +
+      N_adult_female_preh +
+      N_y1_male_preh +
+      N_y1_female_preh +
+      N_yearling_male_preh +
+      N_yearling_female_preh +
+      N_fawn_male_preh +
+      N_fawn_female_preh
 
 
     ### Harvest ###
 
-    N_admale_harvest <- round(
-      N_admale_preh *
+    N_adult_male_mharvest <- round(
+      N_adult_male_preh *
         (
-          harv_df[harv_df$harvestClass == "admale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_admale)
+          harv_df[harv_df$harvest_class == "adult_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_adult_male)
         )
     )
 
-    N_adfemale_harvest <- round(
-      N_adfemale_preh *
+    N_adult_female_mharvest <- round(
+      N_adult_female_preh *
         (
-          harv_df[harv_df$harvestClass == "adfemale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_adfemale)
+          harv_df[harv_df$harvest_class == "adult_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_adult_female)
         )
     )
 
-    N_y1male_harvest <- round(
-      N_y1male_preh *
+    N_y1_male_mharvest <- round(
+      N_y1_male_preh *
         (
-          harv_df[harv_df$harvestClass == "y1male_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_y1male)
+          harv_df[harv_df$harvest_class == "y1_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_y1_male)
         )
     )
 
-    N_y1female_harvest <- round(
-      N_y1female_preh *
+    N_y1_female_mharvest <- round(
+      N_y1_female_preh *
         (
-          harv_df[harv_df$harvestClass == "y1female_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_y1female)
+          harv_df[harv_df$harvest_class == "y1_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_y1_female)
         )
     )
 
-    N_ymale_harvest <- round(
-      N_ymale_preh *
+    N_yearling_male_mharvest <- round(
+      N_yearling_male_preh *
         (
-          harv_df[harv_df$harvestClass == "yearmale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_ymale)
+          harv_df[harv_df$harvest_class == "yearling_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_yearling_male)
         )
     )
 
-    N_yfemale_harvest <- round(
-      N_yfemale_preh *
+    N_yearling_female_mharvest <- round(
+      N_yearling_female_preh *
         (
-          harv_df[harv_df$harvestClass == "yearfemale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_yfemale)
+          harv_df[harv_df$harvest_class == "yearling_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_yearling_female)
         )
     )
 
-    N_fawnmale_harvest <- round(
-      N_fawnmale_preh *
+    N_fawn_male_mharvest <- round(
+      N_fawn_male_preh *
         (
-          harv_df[harv_df$harvestClass == "fawnmale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_fawnmale)
+          harv_df[harv_df$harvest_class == "fawn_male_harvest",
+                  "precent_harvest"] *
+            (1 + hc_fawn_male)
         )
     )
 
-    N_fawnfemale_harvest <- round(
-      N_fawnfemale_preh *
+    N_fawn_female_mharvest <- round(
+      N_fawn_female_preh *
         (
-          harv_df[harv_df$harvestClass == "fawnfemale_harv",
-                  "Precent_harv"] *
-            (1 + harvest_chng_fawnfemale)
+          harv_df[harv_df$harvest_class == "fawn_female_harvest",
+                  "precent_harvest"] *
+            (1 + hc_fawn_female)
         )
     )
 
-    N_harvest <-
-      N_admale_harvest +
-      N_adfemale_harvest +
-      N_y1male_harvest +
-      N_y1female_harvest +
-      N_ymale_harvest +
-      N_yfemale_harvest +
-      N_fawnmale_harvest +
-      N_fawnfemale_harvest
+    N_mharvest <-
+      N_adult_male_mharvest +
+      N_adult_female_mharvest +
+      N_y1_male_mharvest +
+      N_y1_female_mharvest +
+      N_yearling_male_mharvest +
+      N_yearling_female_mharvest +
+      N_fawn_male_mharvest +
+      N_fawn_female_mharvest
 
 
     ### Return one year ###
 
     data.frame(
-      N_admale_posth = N_admale_posth,
-      N_adfemale_posth = N_adfemale_posth,
-      N_y1male_posth = N_y1male_posth,
-      N_y1female_posth = N_y1female_posth,
-      N_ymale_posth = N_ymale_posth,
-      N_yfemale_posth = N_yfemale_posth,
-      N_fawnmale_posth = N_fawnmale_posth,
-      N_fawnfemale_posth = N_fawnfemale_posth,
+      N_adult_male_posth = N_adult_male_posth,
+      N_adult_female_posth = N_adult_female_posth,
+      N_y1_male_posth = N_y1_male_posth,
+      N_y1_female_posth = N_y1_female_posth,
+      N_yearling_male_posth = N_yearling_male_posth,
+      N_yearling_female_posth = N_yearling_female_posth,
+      N_fawn_male_posth = N_fawn_male_posth,
+      N_fawn_female_posth = N_fawn_female_posth,
       N_postharvest = N_postharvest,
-      N_admale_mid = N_admale_mid,
-      N_adfemale_mid = N_adfemale_mid,
-      N_y1male_mid = N_y1male_mid,
-      N_y1female_mid = N_y1female_mid,
-      N_ymale_mid = N_ymale_mid,
-      N_yfemale_mid = N_yfemale_mid,
-      birth_malefawn = birth_malefawn,
-      birth_femalefawn = birth_femalefawn,
-      N_midYear = N_midYear,
-      N_admale_preh = N_admale_preh,
-      N_adfemale_preh = N_adfemale_preh,
-      N_y1male_preh = N_y1male_preh,
-      N_y1female_preh = N_y1female_preh,
-      N_ymale_preh = N_ymale_preh,
-      N_yfemale_preh = N_yfemale_preh,
-      N_fawnmale_preh = N_fawnmale_preh,
-      N_fawnfemale_preh = N_fawnfemale_preh,
+      N_adult_male_mid = N_adult_male_mid,
+      N_adult_female_mid = N_adult_female_mid,
+      N_y1_male_mid = N_y1_male_mid,
+      N_y1_female_mid = N_y1_female_mid,
+      N_yearling_male_mid = N_yearling_male_mid,
+      N_yearling_female_mid = N_yearling_female_mid,
+      birth_male_fawn = birth_male_fawn,
+      birth_female_fawn = birth_female_fawn,
+      N_midyear = N_midyear,
+      N_adult_male_preh = N_adult_male_preh,
+      N_adult_female_preh = N_adult_female_preh,
+      N_y1_male_preh = N_y1_male_preh,
+      N_y1_female_preh = N_y1_female_preh,
+      N_yearling_male_preh = N_yearling_male_preh,
+      N_yearling_female_preh = N_yearling_female_preh,
+      N_fawn_male_preh = N_fawn_male_preh,
+      N_fawn_female_preh = N_fawn_female_preh,
       N_preharvest = N_preharvest,
-      N_admale_harvest = N_admale_harvest,
-      N_adfemale_harvest = N_adfemale_harvest,
-      N_y1male_harvest = N_y1male_harvest,
-      N_y1female_harvest = N_y1female_harvest,
-      N_ymale_harvest = N_ymale_harvest,
-      N_yfemale_harvest = N_yfemale_harvest,
-      N_fawnmale_harvest = N_fawnmale_harvest,
-      N_fawnfemale_harvest = N_fawnfemale_harvest,
-      N_harvest = N_harvest
+      N_adult_male_mharvest = N_adult_male_mharvest,
+      N_adult_female_mharvest = N_adult_female_mharvest,
+      N_y1_male_mharvest = N_y1_male_mharvest,
+      N_y1_female_mharvest = N_y1_female_mharvest,
+      N_yearling_male_mharvest = N_yearling_male_mharvest,
+      N_yearling_female_mharvest = N_yearling_female_mharvest,
+      N_fawn_male_mharvest = N_fawn_male_mharvest,
+      N_fawn_female_mharvest = N_fawn_female_mharvest,
+      N_mharvest = N_mharvest
     )
   }
 
@@ -988,129 +1045,153 @@ AcCountDeer <- function(
   ############# Loop #################
 
   # Store all 15 years
-  pop_results2 <- vector("list", 15)
+  results <- list()
+
+  results$ModelYear <- 1:project_years
 
   # Year 1 is already calculated above
-  pop_results2[[1]] <- previous_year
+  results[[1]] <- previous_year
 
 
   # Years 2 through 15
-  for (i in 2:15) {
+  for (i in 2:project_years) {
 
-    if (!iterative) {
+    # Determine whether harvest change is active
+    if (length(hc_specify) > 0 &&
+        !all(hc_specify == 0)) {
 
-      harvest_active <- i >= 4 &&
-        i <= (3 + changeDuration)
+      # Explicit ModelYears override hc_duration
+      harvest_active <- i %in% hc_specify
 
     } else {
 
+      # Use hc_duration when no specific years are supplied
       harvest_active <- i >= 4 &&
-        i <= (3 + changeDuration * 4) &&
-        ((i - 4) %% 4 < 2)
+        i <= (3 + hc_duration)
     }
 
     if (harvest_active) {
 
-      harvest_chng_admale2     <- harvest_chng_admale
-      harvest_chng_adfemale2   <- harvest_chng_adfemale
-      harvest_chng_y1male2     <- harvest_chng_y1male
-      harvest_chng_y1female2   <- harvest_chng_y1female
-      harvest_chng_ymale2      <- harvest_chng_ymale
-      harvest_chng_yfemale2    <- harvest_chng_yfemale
-      harvest_chng_fawnmale2   <- harvest_chng_fawnmale
-      harvest_chng_fawnfemale2 <- harvest_chng_fawnfemale
+      hc_adult_male2     <- hc_adult_male
+      hc_adult_female2   <- hc_adult_female
+      hc_y1_male2     <- hc_y1_male
+      hc_y1_female2   <- hc_y1_female
+      hc_yearling_male2      <- hc_yearling_male
+      hc_yearling_female2    <- hc_yearling_female
+      hc_fawn_male2   <- hc_fawn_male
+      hc_fawn_female2 <- hc_fawn_female
 
     } else {
 
-      harvest_chng_admale2     <- 0
-      harvest_chng_adfemale2   <- 0
-      harvest_chng_y1male2     <- 0
-      harvest_chng_y1female2   <- 0
-      harvest_chng_ymale2      <- 0
-      harvest_chng_yfemale2    <- 0
-      harvest_chng_fawnmale2   <- 0
-      harvest_chng_fawnfemale2 <- 0
+      hc_adult_male2     <- 0
+      hc_adult_female2   <- 0
+      hc_y1_male2     <- 0
+      hc_y1_female2   <- 0
+      hc_yearling_male2      <- 0
+      hc_yearling_female2    <- 0
+      hc_fawn_male2   <- 0
+      hc_fawn_female2 <- 0
     }
 
-    #Additional mortality change
+    # Additional mortality change
 
-    if (i >= 4 && i <= (3 + adMortChangeDuration)) {
+    if (length(adm_specify) > 0 &&
+        !all(adm_specify == 0)) {
 
-      adMort_admale2     <- adMort_admale
-      adMort_adfemale2   <- adMort_adfemale
-      adMort_y1male2     <- adMort_y1male
-      adMort_y1female2   <- adMort_y1female
-      adMort_ymale2      <- adMort_ymale
-      adMort_yfemale2    <- adMort_yfemale
-      adMort_fawnmale2   <- adMort_fawnmale
-      adMort_fawnfemale2 <- adMort_fawnfemale
+      # Explicitly specified ModelYears
+      adm_active <- i %in% adm_specify
 
     } else {
 
-      adMort_admale2     <- 0
-      adMort_adfemale2   <- 0
-      adMort_y1male2     <- 0
-      adMort_y1female2   <- 0
-      adMort_ymale2      <- 0
-      adMort_yfemale2    <- 0
-      adMort_fawnmale2   <- 0
-      adMort_fawnfemale2 <- 0
+      # Duration-based approach
+      adm_active <- i >= 4 &&
+        i <= (3 + adm_duration)
+    }
+
+
+    if (adm_active) {
+
+      adm_adult_male2     <- adm_adult_male
+      adm_adult_female2   <- adm_adult_female
+      adm_y1_male2     <- adm_y1_male
+      adm_y1_female2   <- adm_y1_female
+      adm_yearling_male2      <- adm_yearling_male
+      adm_yearling_female2    <- adm_yearling_female
+      adm_fawn_male2   <- adm_fawn_male
+      adm_fawn_female2 <- adm_fawn_female
+
+    } else {
+
+      adm_adult_male2     <- 0
+      adm_adult_female2   <- 0
+      adm_y1_male2     <- 0
+      adm_y1_female2   <- 0
+      adm_yearling_male2      <- 0
+      adm_yearling_female2    <- 0
+      adm_fawn_male2   <- 0
+      adm_fawn_female2 <- 0
     }
 
 
     #Running next year
 
-    pop_results2[[i]] <- year_fun(
+    results[[i]] <- year_fun(
 
-      previous_year = pop_results2[[i - 1]],
+      previous_year = results[[i - 1]],
 
-      seasonDuration = seasonDuration,
-      seasonOpen = seasonOpen,
-      birthMonth = birthMonth,
-      adFawnRate = adFawnRate,
-      yearFawnRate = yearFawnRate,
+      season_duration = season_duration,
+      season_open = season_open,
+      birth_month = birth_month,
+      adult_fawn_rate = adult_fawn_rate,
+      yearling_fawn_rate = yearling_fawn_rate,
 
-      harvest_chng_admale = harvest_chng_admale2,
-      harvest_chng_adfemale = harvest_chng_adfemale2,
-      harvest_chng_y1male = harvest_chng_y1male2,
-      harvest_chng_y1female = harvest_chng_y1female2,
-      harvest_chng_ymale = harvest_chng_ymale2,
-      harvest_chng_yfemale = harvest_chng_yfemale2,
-      harvest_chng_fawnmale = harvest_chng_fawnmale2,
-      harvest_chng_fawnfemale = harvest_chng_fawnfemale2,
+      hc_adult_male = hc_adult_male2,
+      hc_adult_female = hc_adult_female2,
+      hc_y1_male = hc_y1_male2,
+      hc_y1_female = hc_y1_female2,
+      hc_yearling_male = hc_yearling_male2,
+      hc_yearling_female = hc_yearling_female2,
+      hc_fawn_male = hc_fawn_male2,
+      hc_fawn_female = hc_fawn_female2,
 
-      adMort_admale = adMort_admale2,
-      adMort_adfemale = adMort_adfemale2,
-      adMort_y1male = adMort_y1male2,
-      adMort_y1female = adMort_y1female2,
-      adMort_ymale = adMort_ymale2,
-      adMort_yfemale = adMort_yfemale2,
-      adMort_fawnmale = adMort_fawnmale2,
-      adMort_fawnfemale = adMort_fawnfemale2
+      adm_adult_male = adm_adult_male2,
+      adm_adult_female = adm_adult_female2,
+      adm_y1_male = adm_y1_male2,
+      adm_y1_female = adm_y1_female2,
+      adm_yearling_male = adm_yearling_male2,
+      adm_yearling_female = adm_yearling_female2,
+      adm_fawn_male = adm_fawn_male2,
+      adm_fawn_female = adm_fawn_female2
     )
   }
 
-  population_results2 <- do.call(
+  results_full <- do.call(
     rbind,
-    pop_results2
+    results
   )
 
   # Reset row names
-  rownames(population_results2) <- NULL
+  rownames(results_full) <- NULL
 
 
   # Add model year
-  population_results2$ModelYear <- 1:15
+  results_full$ModelYear <- 1:project_years
 
   # Add Lambda
-  population_results2$Lambda <- NA_real_
+  results_full$Lambda <- NA_real_
 
-  population_results2$Lambda[2:15] <-
-    population_results2$N_preharvest[2:15] /
-    population_results2$N_preharvest[1:14]
+  results_full$Lambda[2:project_years] <-
+    results_full$N_preharvest[2:project_years] /
+    results_full$N_preharvest[1:(project_years - 1)]
 
-  population_results2$Lambda <- round(population_results2$Lambda, digits = 2)
+  results_full$Lambda <- round(results_full$Lambda, digits = 2)
 
-  return(population_results2)
+  # Move ModelYear to first column
+  results_full <- results_full[, c(
+    "ModelYear",
+    setdiff(names(results_full), "ModelYear")
+  )]
+
+  return(as.data.frame(results_full))
 
 }
