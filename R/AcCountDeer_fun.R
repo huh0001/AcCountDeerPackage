@@ -1,3 +1,8 @@
+
+#' Run the AcCountDeer population model
+#'
+#' @export
+
 AcCountDeer <- function(
     preharvest_pop = preharvest_pop,
     doe_ratio = doe_ratio,
