@@ -14,9 +14,9 @@ AcCountDeer <- function(
     yearling_fawn_rate = yearling_fawn_rate,
     antlered_harvest = antlered_harvest,
     antlerless_harvest = antlerless_harvest,
-    m_yearling_harvest_prop = m_yearling_harvest_prop,
-    f_yearling_harvest_prop = f_yearling_harvest_prop,
-    fawn_harvest_prop = fawn_harvest_prop,
+    prop_ymale_in_antlered_harvest = prop_ymale_in_antlered_harvest,
+    prop_yfemale_in_antlerless_harvest = prop_yfemale_in_antlerless_harvest,
+    prop_fawn_in_antlerless_harvest = prop_fawn_in_antlerless_harvest,
     birth_month = birth_month,
     season_open = season_open,
     season_duration = season_duration,
@@ -45,9 +45,6 @@ AcCountDeer <- function(
     adm_yearling_female = 0,
     adm_fawn_male = 0,
     adm_fawn_female = 0,
-
-    hc_duration = 0,
-    adm_duration = 0,
 
     hc_specify = 0,
     adm_specify = 0,
@@ -83,9 +80,27 @@ AcCountDeer <- function(
     adm_fawn_female
   )
 
-  if (any(adm_validation < 0 | adm_validation > 1)) {
-    stop("All adm values must be between 0 and 1.")
+  # if (any(adm_validation < 0 | adm_validation > 1)) {
+  #   stop("All adm values must be between 0 and 1.")
+  # }
+
+
+  # Check harvest change specification
+  if (any(hc_specify %in% 1:3, na.rm = TRUE)) {
+    warning(
+      "AcCountDeer requires ~3 years to equilibrate. It is recommended that harvest change and additional mortality is applied from year 4 onward.",
+      call. = FALSE
+    )
   }
+
+  # Check additional mortality specification
+  if (any(adm_specify %in% 1:3, na.rm = TRUE)) {
+    warning(
+      "AcCountDeer requires ~3 years to equilibrate. It is recommended that harvest change and additional mortality is applied from year 4 onward.",
+      call. = FALSE
+    )
+  }
+
 
   # Check month/season inputs
   month_validation <- c(
@@ -165,28 +180,28 @@ AcCountDeer <- function(
   harvest_fun <- function(
     antlerless_harvest,
     antlered_harvest,
-    fawn_harvest_prop,
-    f_yearling_harvest_prop,
-    m_yearling_harvest_prop,
+    prop_fawn_in_antlerless_harvest,
+    prop_yfemale_in_antlerless_harvest,
+    prop_ymale_in_antlered_harvest,
     y1_prop
   ) {
 
     # Step 1: Fawn harvest
     fawn_female_harvest <- round(
-      (antlerless_harvest * fawn_harvest_prop) / 2
+      (antlerless_harvest * prop_fawn_in_antlerless_harvest) / 2
     )
 
     fawn_male_harvest <- round(
-      (antlerless_harvest * fawn_harvest_prop) / 2
+      (antlerless_harvest * prop_fawn_in_antlerless_harvest) / 2
     )
 
     # Step 2: Yearling harvest
     yearling_female_harvest <- round(
-      antlerless_harvest * f_yearling_harvest_prop
+      antlerless_harvest * prop_yfemale_in_antlerless_harvest
     )
 
     yearling_male_harvest <- round(
-      antlered_harvest * m_yearling_harvest_prop
+      antlered_harvest * prop_ymale_in_antlered_harvest
     )
 
     # Step 3: Year 1 harvest
@@ -245,9 +260,9 @@ AcCountDeer <- function(
   harv_df <- harvest_fun(
     antlerless_harvest = antlerless_harvest,
     antlered_harvest = antlered_harvest,
-    fawn_harvest_prop = fawn_harvest_prop,
-    f_yearling_harvest_prop = f_yearling_harvest_prop,
-    m_yearling_harvest_prop = m_yearling_harvest_prop,
+    prop_fawn_in_antlerless_harvest = prop_fawn_in_antlerless_harvest,
+    prop_yfemale_in_antlerless_harvest = prop_yfemale_in_antlerless_harvest,
+    prop_ymale_in_antlered_harvest = prop_ymale_in_antlered_harvest,
     y1_prop = y1_prop
   )
 
@@ -784,129 +799,49 @@ AcCountDeer <- function(
       (N_adult_male_mid -
          N_adult_male_mid *
          (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            N_adult_male_mid -
-              N_adult_male_mid *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_adult_male
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) - adm_adult_male)
 
     N_adult_female_preh <- round(
       (N_adult_female_mid -
          N_adult_female_mid *
          (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            N_adult_female_mid -
-              N_adult_female_mid *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_adult_female
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) - adm_adult_female)
 
     N_y1_male_preh <- round(
       (N_y1_male_mid -
          N_y1_male_mid *
          (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            N_y1_male_mid -
-              N_y1_male_mid *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_male_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_y1_male
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) - adm_y1_male)
 
     N_y1_female_preh <- round(
       (N_y1_female_mid -
          N_y1_female_mid *
          (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            N_y1_female_mid -
-              N_y1_female_mid *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "adult_female_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_y1_female
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) - adm_y1_female)
 
     N_yearling_male_preh <- round(
       (N_yearling_male_mid -
          N_yearling_male_mid *
          (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_male_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            N_yearling_male_mid -
-              N_yearling_male_mid *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_male_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_yearling_male
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) - adm_yearling_male)
 
     N_yearling_female_preh <- round(
       (N_yearling_female_mid -
          N_yearling_female_mid *
          (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_female_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            N_yearling_female_mid -
-              N_yearling_female_mid *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "yearling_female_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_yearling_female
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) - adm_yearling_female)
 
     N_fawn_male_preh <- round(
       (birth_male_fawn -
          birth_male_fawn *
          (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            birth_male_fawn -
-              birth_male_fawn *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_fawn_male
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) -adm_fawn_male)
 
     N_fawn_female_preh <- round(
       (birth_female_fawn -
          birth_female_fawn *
          (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
-                           "monthly_rate"])^((season_open - 1) - birth_month)))) -
-        (
-          (
-            birth_female_fawn -
-              birth_female_fawn *
-              (1 - ((1 - nhm_df[nhm_df$age_class == "six_month_fawn_nhm",
-                                "monthly_rate"])^((season_open - 1) -
-                                                    birth_month)))
-          ) * adm_fawn_female
-        )
-    )
+                           "monthly_rate"])^((season_open - 1) - birth_month)))) - adm_fawn_female)
 
     N_preharvest <-
       N_adult_male_preh +
@@ -1058,88 +993,62 @@ AcCountDeer <- function(
   results[[1]] <- previous_year
 
 
-  # Years 2 through 15
+  # Years 2 through project_years
   for (i in 2:project_years) {
 
     # Determine whether harvest change is active
-    if (length(hc_specify) > 0 &&
-        !all(hc_specify == 0)) {
-
-      # Explicit ModelYears override hc_duration
-      harvest_active <- i %in% hc_specify
-
-    } else {
-
-      # Use hc_duration when no specific years are supplied
-      harvest_active <- i >= 4 &&
-        i <= (3 + hc_duration)
-    }
+    harvest_active <- i %in% hc_specify
 
     if (harvest_active) {
 
-      hc_adult_male2     <- hc_adult_male
-      hc_adult_female2   <- hc_adult_female
-      hc_y1_male2     <- hc_y1_male
-      hc_y1_female2   <- hc_y1_female
-      hc_yearling_male2      <- hc_yearling_male
-      hc_yearling_female2    <- hc_yearling_female
-      hc_fawn_male2   <- hc_fawn_male
-      hc_fawn_female2 <- hc_fawn_female
+      hc_adult_male2      <- hc_adult_male
+      hc_adult_female2    <- hc_adult_female
+      hc_y1_male2         <- hc_y1_male
+      hc_y1_female2       <- hc_y1_female
+      hc_yearling_male2   <- hc_yearling_male
+      hc_yearling_female2 <- hc_yearling_female
+      hc_fawn_male2       <- hc_fawn_male
+      hc_fawn_female2     <- hc_fawn_female
 
     } else {
 
-      hc_adult_male2     <- 0
-      hc_adult_female2   <- 0
-      hc_y1_male2     <- 0
-      hc_y1_female2   <- 0
-      hc_yearling_male2      <- 0
-      hc_yearling_female2    <- 0
-      hc_fawn_male2   <- 0
-      hc_fawn_female2 <- 0
+      hc_adult_male2      <- 0
+      hc_adult_female2    <- 0
+      hc_y1_male2         <- 0
+      hc_y1_female2       <- 0
+      hc_yearling_male2   <- 0
+      hc_yearling_female2 <- 0
+      hc_fawn_male2       <- 0
+      hc_fawn_female2     <- 0
     }
 
     # Additional mortality change
-
-    if (length(adm_specify) > 0 &&
-        !all(adm_specify == 0)) {
-
-      # Explicitly specified ModelYears
-      adm_active <- i %in% adm_specify
-
-    } else {
-
-      # Duration-based approach
-      adm_active <- i >= 4 &&
-        i <= (3 + adm_duration)
-    }
-
+    adm_active <- i %in% adm_specify
 
     if (adm_active) {
 
-      adm_adult_male2     <- adm_adult_male
-      adm_adult_female2   <- adm_adult_female
-      adm_y1_male2     <- adm_y1_male
-      adm_y1_female2   <- adm_y1_female
-      adm_yearling_male2      <- adm_yearling_male
-      adm_yearling_female2    <- adm_yearling_female
-      adm_fawn_male2   <- adm_fawn_male
-      adm_fawn_female2 <- adm_fawn_female
+      adm_adult_male2      <- adm_adult_male
+      adm_adult_female2    <- adm_adult_female
+      adm_y1_male2         <- adm_y1_male
+      adm_y1_female2       <- adm_y1_female
+      adm_yearling_male2   <- adm_yearling_male
+      adm_yearling_female2 <- adm_yearling_female
+      adm_fawn_male2       <- adm_fawn_male
+      adm_fawn_female2     <- adm_fawn_female
 
     } else {
 
-      adm_adult_male2     <- 0
-      adm_adult_female2   <- 0
-      adm_y1_male2     <- 0
-      adm_y1_female2   <- 0
-      adm_yearling_male2      <- 0
-      adm_yearling_female2    <- 0
-      adm_fawn_male2   <- 0
-      adm_fawn_female2 <- 0
+      adm_adult_male2      <- 0
+      adm_adult_female2    <- 0
+      adm_y1_male2         <- 0
+      adm_y1_female2       <- 0
+      adm_yearling_male2   <- 0
+      adm_yearling_female2 <- 0
+      adm_fawn_male2       <- 0
+      adm_fawn_female2     <- 0
     }
 
-
-    #Running next year
-
+    # Running next year
     results[[i]] <- year_fun(
 
       previous_year = results[[i - 1]],
@@ -1170,6 +1079,39 @@ AcCountDeer <- function(
     )
   }
 
+
+  #Running next year
+
+  results[[i]] <- year_fun(
+
+    previous_year = results[[i - 1]],
+
+    season_duration = season_duration,
+    season_open = season_open,
+    birth_month = birth_month,
+    adult_fawn_rate = adult_fawn_rate,
+    yearling_fawn_rate = yearling_fawn_rate,
+
+    hc_adult_male = hc_adult_male2,
+    hc_adult_female = hc_adult_female2,
+    hc_y1_male = hc_y1_male2,
+    hc_y1_female = hc_y1_female2,
+    hc_yearling_male = hc_yearling_male2,
+    hc_yearling_female = hc_yearling_female2,
+    hc_fawn_male = hc_fawn_male2,
+    hc_fawn_female = hc_fawn_female2,
+
+    adm_adult_male = adm_adult_male2,
+    adm_adult_female = adm_adult_female2,
+    adm_y1_male = adm_y1_male2,
+    adm_y1_female = adm_y1_female2,
+    adm_yearling_male = adm_yearling_male2,
+    adm_yearling_female = adm_yearling_female2,
+    adm_fawn_male = adm_fawn_male2,
+    adm_fawn_female = adm_fawn_female2
+  )
+
+
   results_full <- do.call(
     rbind,
     results
@@ -1198,5 +1140,4 @@ AcCountDeer <- function(
   )]
 
   return(as.data.frame(results_full))
-
 }
